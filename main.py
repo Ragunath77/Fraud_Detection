@@ -11,41 +11,43 @@ with open("final_model.pkl", "rb") as f:
 
 app = FastAPI()
 
-# Enable CORS
+# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with frontend URL in production
+    allow_origins=["*"],  # Replace with your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Health check
 @app.get("/")
 def home():
     return {"status": "ok", "message": "Fraud detection API is live 🚀"}
 
-# Prediction endpoint
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
         # Read CSV
         df = pd.read_csv(file.file)
 
-        # Run prediction
-        preds = model.predict(df)
-        df["prediction"] = preds  # append predictions as last column
+        # Make sure columns match model
+        required_columns = model.feature_names_in_ if hasattr(model, "feature_names_in_") else df.columns
+        df = df[required_columns]
 
-        # Convert CSV to in-memory buffer
+        # Predict
+        preds = model.predict(df)
+        df["prediction"] = preds
+
+        # Convert CSV to memory
         stream = io.StringIO()
         df.to_csv(stream, index=False)
         stream.seek(0)
 
-        # Return CSV as downloadable file
+        # Return CSV for download
         return StreamingResponse(
             stream,
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=predictions.csv"},
+            headers={"Content-Disposition": "attachment; filename=predictions.csv"}
         )
 
     except Exception as e:
