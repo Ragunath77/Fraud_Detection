@@ -2,9 +2,9 @@ import os
 import pickle
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from io import StringIO
 
 # Load model
 with open("final_model.pkl", "rb") as f:
@@ -27,7 +27,7 @@ app.add_middleware(
 def home():
     return {"status": "ok", "message": "Fraud detection API is live 🚀"}
 
-# Prediction route
+# Prediction route returning CSV
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     try:
@@ -37,15 +37,18 @@ async def predict(file: UploadFile = File(...)):
         # Run prediction
         preds = model.predict(df)
 
-        # Convert to list for JSON response
-        results = preds.tolist()
+        # Add predictions to dataframe
+        df["prediction"] = preds
 
-        return {"predictions": results}
+        # Convert dataframe to CSV in-memory
+        stream = StringIO()
+        df.to_csv(stream, index=False)
+        stream.seek(0)
+
+        # Return as downloadable CSV
+        response = StreamingResponse(stream, media_type="text/csv")
+        response.headers["Content-Disposition"] = "attachment; filename=predictions.csv"
+        return response
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-# Run app locally (Render overrides with $PORT)
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # use Render's $PORT or default 8000
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
