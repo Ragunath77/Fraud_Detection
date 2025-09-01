@@ -3,6 +3,7 @@ import pickle
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # Load model
@@ -11,6 +12,15 @@ with open("final_model.pkl", "rb") as f:
 
 # Create app
 app = FastAPI()
+
+# Enable CORS (important for frontend → backend communication)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # allow all origins (for dev; replace "*" with frontend URL in prod)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Health check route (for Render/browser testing)
 @app.get("/")
@@ -34,7 +44,6 @@ async def predict(file: UploadFile = File(...)):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
 
 # Run app locally (Render overrides with $PORT)
 if __name__ == "__main__":
